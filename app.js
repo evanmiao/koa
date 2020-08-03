@@ -36,7 +36,7 @@ app.use(logger())
 app.use(cors())
 app.use(require('koa-static')(__dirname + '/public'))
 
-app.use(jwt({ secret: 'secret' }).unless({ path: [/^\/signup/, /^\/signin/] }))
+app.use(jwt({ secret: 'secret' }).unless({ path: [/\/signup/, /\/signin/] }))
 app.use(views(__dirname + '/views', {
   extension: 'ejs'
 }))
