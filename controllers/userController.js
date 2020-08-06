@@ -1,38 +1,51 @@
 const User = require('../models/user')
 const jwt = require('jsonwebtoken')
 const bcrypt = require('bcryptjs')
+const Sequelize = require('sequelize')
+const Op = Sequelize.Op
 
 class UserController {
   // 用户注册
   static async signup(ctx) {
     const { body } = ctx.request
     try {
-      if (!body.name || !body.password || !body.email) {
+      if (!body.username || !body.password || !body.email) {
         ctx.status = 400
         ctx.body = {
-          error: `expected an object with name, password and email but got: ${body}`,
+          error: `expected an object with username, password and email but got: ${body}`,
         }
         return
       }
       body.password = await bcrypt.hash(body.password, 5)
-      let user = await User.findAll({
+      const username = await User.findOne({
         where: {
-          name: body.name
+          username: body.username 
         }
       })
-      if (!user.length) {
-        const newUser = User.build(body)
-        user = await newUser.save()
-        ctx.status = 200
+      if (!(username === null)) {
+        ctx.status = 400
         ctx.body = {
-          message: '注册成功',
-          user,
+          message: '用户名已存在'
         }
-      } else {
-        ctx.status = 406
+        return
+      }
+      const email = await User.findOne({
+        where: {
+          email: body.email 
+        }
+      })
+      if (!(email === null)) {
+        ctx.status = 400
         ctx.body = {
-          message: '用户名已经存在',
+          message: '邮箱已存在'
         }
+        return
+      }
+      const newUser = await User.create(body)
+      ctx.status = 200
+      ctx.body = {
+        message: '注册成功',
+        user: newUser
       }
     } catch (error) {
       ctx.throw(500)
@@ -43,14 +56,16 @@ class UserController {
   static async signin(ctx) {
     const { body } = ctx.request
     try {
-      const user = await User.findAll({
+      const user = await User.findOne({
         where: {
-          name: body.name
+          [Op.or]: [
+            { username: body.username },
+            { email: body.username }
+          ]
         }
       })
-      console.log(user)
-      if (!user.length) {
-        ctx.status = 401
+      if (user === null) {
+        ctx.status = 400
         ctx.body = {
           message: '用户名错误',
         }
@@ -62,10 +77,10 @@ class UserController {
         ctx.body = {
           message: '登录成功',
           // 生成 token 返回给客户端
-          token: jwt.sign({ data: user }, 'secret', { expiresIn:'1h' })
+          token: jwt.sign({ username: user.username }, 'secret', { expiresIn: '4h' })
         }
       } else {
-        ctx.status = 401
+        ctx.status = 400
         ctx.body = {
           message: '密码错误',
         }
@@ -82,12 +97,81 @@ class UserController {
 
   // 更新用户资料
   static async update(ctx) {
-    // await ……
+    const { body } = ctx.request
+    const token = ctx.request.header.authorization
+    const payload = jwt.verify(token.split(' ')[1], 'secret')
+    try {
+      if (body.username) {
+        const username = await User.findOne({
+          where: {
+            username: body.username
+          }
+        })
+        if (!(username === null)) {
+          ctx.status = 400
+          ctx.body = {
+            message: '用户名已存在',
+          }
+          return
+        }
+      }
+      if (body.email) {
+        const email = await User.findOne({
+          where: {
+            email: body.email
+          }
+        })
+        if (!(email === null)) {
+          ctx.status = 400
+          ctx.body = {
+            message: '邮箱已存在',
+          }
+          return
+        }
+      }
+      const res = await User.update({
+        username: body.username,
+        password: body.password,
+        email: body.email
+      }, {
+        where: {
+          username: payload.username
+        }
+      })
+      if (res[0]) {
+        ctx.status = 200,
+        ctx.body = {
+          message: '更新成功'
+        }
+      }
+    } catch (error) {
+      ctx.throw(500)
+    }
   }
 
   // 删除用户
   static async delete(ctx) {
-    // await ……
+    const { body } = ctx.request
+    const token = ctx.request.header.authorization
+    const payload = jwt.verify(token.split(' ')[1], 'secret')
+    try {
+      const res = await User.destroy({
+        where: {
+          username: payload.username
+        }
+      })
+      if (res) {
+        ctx.body = {
+          message: '删除成功'
+        }
+      } else {
+        ctx.body = {
+          message: ''
+        }
+      }
+    } catch (error) {
+      ctx.throw(500)
+    }
   }
 
   // 重置密码
@@ -95,7 +179,7 @@ class UserController {
     // await ……
   }
 
-  // 重置密码
+  // 用户资料
   static async userDetail(ctx) {
     // await ……
   }
