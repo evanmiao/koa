@@ -77,7 +77,7 @@ class UserController {
         ctx.body = {
           message: '登录成功',
           // 生成 token 返回给客户端
-          token: jwt.sign({ username: user.username }, 'secret', { expiresIn: '4h' })
+          token: jwt.sign({ id: user.id, username: user.username }, 'secret', { expiresIn: '4h' })
         }
       } else {
         ctx.status = 400
